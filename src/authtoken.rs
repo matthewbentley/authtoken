@@ -96,17 +96,23 @@ impl AuthToken {
 
     }
 
-    /// Verify the `unknown` matches `good` and is within the timeout
-    pub fn verify_token(good: &AuthToken, unknown: &AuthToken) -> bool {
+    /// Verify whether `unknown` matches `good` within `timeout`
+    pub fn verify_token_set_timeout(good: &AuthToken, unknown: &AuthToken,
+                                    timeout: Duration) -> bool {
         let mut is_good = true;
 
         is_good = is_good && (good.hmac == unknown.hmac);
 
-        let timeout = Duration::minutes(5);
-
         is_good = is_good && (unknown.time >= (now().to_utc() - timeout));
 
         is_good
+    }
+
+    /// Verify whether `unknown` matches `good` and is within the timeout
+    /// (default timout is 5 mintues)
+    pub fn verify_token(good: &AuthToken, unknown: &AuthToken) -> bool {
+        let timeout = Duration::minutes(5);
+        AuthToken::verify_token_set_timeout(good, unknown, timeout)
     }
 
 }
