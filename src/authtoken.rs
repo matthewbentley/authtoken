@@ -132,7 +132,8 @@ impl From<Utf8Error> for TokenError {
 
 /// Takes a a key (hmac_secret), the data, and hyper Headers and adds the
 /// serialized AuthToken to the SetCookie header
-pub fn set_auth_cookie(hmac_secret: &str, data: &str, headers: &mut Headers) {
+pub fn set_auth_cookie<D>(hmac_secret: &str, data: D, headers: &mut Headers)
+        where D: Display {
     let token = AuthToken::new(hmac_secret, data);
     let c_pair = CookiePair::new("auth_token".to_string(), token.to_string());
 
