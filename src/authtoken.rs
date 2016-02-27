@@ -10,12 +10,16 @@ use std::string::ToString;
 use std::fmt::{self, Debug};
 
 
+/// An auth token.  This gets serialized and put in a cookie
 pub struct AuthToken {
+    /// The time that the token was created.  Used to calculate timeout
     pub time: Tm,
+    /// The data you wish to store in the token
     pub data: String,
     hmac: MacResult,
 }
 
+/// Error returned when deserializing a token
 #[derive(Debug)]
 pub enum TokenError {
     Base64(FromBase64Error),
@@ -72,10 +76,13 @@ impl FromStr for AuthToken {
 }
 
 impl AuthToken {
+    /// Create a new AuthToken.  hmac_secret is the secret key, data is the
+    /// data you wish to store
     pub fn new(hmac_secret: &str, data: &str) -> AuthToken {
         AuthToken::new_with_time(hmac_secret, data, now().to_utc())
     }
 
+    /// Create a new AuthToken, but specify the creation time
     pub fn new_with_time(hmac_secret: &str, data: &str, t: Tm) -> AuthToken {
         let mut hmac = Hmac::new(Sha512Trunc224::new(), hmac_secret.as_bytes());
         let text = format!("{}.{}", data, t.rfc3339());
@@ -89,6 +96,7 @@ impl AuthToken {
 
     }
 
+    /// Verify the `unknown` matches `good` and is within the timeout
     pub fn verify_token(good: &AuthToken, unknown: &AuthToken) -> bool {
         let mut is_good = true;
 
@@ -115,6 +123,8 @@ impl From<Utf8Error> for TokenError {
     }
 }
 
+/// Takes a a key (hmac_secret), the data, and hyper Headers and adds the
+/// serialized AuthToken to the SetCookie header
 pub fn set_auth_cookie(hmac_secret: &str, data: &str, headers: &mut Headers) {
     let token = AuthToken::new(hmac_secret, data);
     let c_pair = CookiePair::new("auth_token".to_string(), token.to_string());
@@ -129,6 +139,8 @@ pub fn set_auth_cookie(hmac_secret: &str, data: &str, headers: &mut Headers) {
     headers.set::<SetCookie>(SetCookie(vec![c_pair]));
 }
 
+/// Verifies an AuthToken given an hmac_secret from the Cookie in a hyper
+/// Headers
 pub fn verify_auth_cookie(hmac_secret: &str, headers: &Headers) -> bool {
     let to_verify = match get_auth_token_from_headers(headers) {
         Some(v) => v,
@@ -140,6 +152,7 @@ pub fn verify_auth_cookie(hmac_secret: &str, headers: &Headers) -> bool {
     AuthToken::verify_token(&good, &to_verify)
 }
 
+/// Extract the AuthToken from hyper Headers
 pub fn get_auth_token_from_headers(headers: &Headers) -> Option<AuthToken> {
     let cookies = match headers.get::<Cookie>() {
         Some(c) => c,
