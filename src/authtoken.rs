@@ -11,8 +11,8 @@ use std::fmt::{self, Debug};
 
 
 pub struct AuthToken {
-    time: Tm,
-    username: String,
+    pub time: Tm,
+    pub data: String,
     hmac: MacResult,
 }
 
@@ -27,14 +27,14 @@ pub enum TokenError {
 
 impl Debug for AuthToken {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "AuthToken {{ time: {:?}, username: {}, hmac: {:?} }}",
-               self.time, self.username, self.hmac.code().to_base64(URL_SAFE))
+        write!(f, "AuthToken {{ time: {:?}, data: {}, hmac: {:?} }}",
+               self.time, self.data, self.hmac.code().to_base64(URL_SAFE))
     }
 }
 
 impl ToString for AuthToken {
     fn to_string(&self) -> String {
-        let text = format!("{}.{}", self.username, self.time.to_timespec().sec)
+        let text = format!("{}.{}", self.data, self.time.to_timespec().sec)
             .as_bytes()
             .to_base64(URL_SAFE);
 
@@ -60,30 +60,30 @@ impl FromStr for AuthToken {
             return Err(TokenError::SecondDotNotFound);
         }
 
-        let username = userparts.get(0).unwrap();
+        let data = userparts.get(0).unwrap();
         let t = strptime(userparts.get(1).unwrap(), "%s").unwrap().to_utc();
 
         Ok(AuthToken {
             time: t,
-            username: username.to_string(),
+            data: data.to_string(),
             hmac: hmac,
         })
     }
 }
 
 impl AuthToken {
-    pub fn new(hmac_secret: &str, username: &str) -> AuthToken {
-        AuthToken::new_with_time(hmac_secret, username, now().to_utc())
+    pub fn new(hmac_secret: &str, data: &str) -> AuthToken {
+        AuthToken::new_with_time(hmac_secret, data, now().to_utc())
     }
 
-    pub fn new_with_time(hmac_secret: &str, username: &str, t: Tm) -> AuthToken {
+    pub fn new_with_time(hmac_secret: &str, data: &str, t: Tm) -> AuthToken {
         let mut hmac = Hmac::new(Sha512Trunc224::new(), hmac_secret.as_bytes());
-        let text = format!("{}.{}", username, t.rfc3339());
+        let text = format!("{}.{}", data, t.rfc3339());
         hmac.input(text.as_bytes());
 
         AuthToken {
             time: t,
-            username: username.to_string(),
+            data: data.to_string(),
             hmac: hmac.result(),
         }
 
@@ -115,8 +115,8 @@ impl From<Utf8Error> for TokenError {
     }
 }
 
-pub fn set_auth_cookie(hmac_secret: &str, username: &str, headers: &mut Headers) {
-    let token = AuthToken::new(hmac_secret, username);
+pub fn set_auth_cookie(hmac_secret: &str, data: &str, headers: &mut Headers) {
+    let token = AuthToken::new(hmac_secret, data);
     let c_pair = CookiePair::new("auth_token".to_string(), token.to_string());
 
     match headers.get_mut::<SetCookie>() {
@@ -134,7 +134,7 @@ pub fn verify_auth_cookie(hmac_secret: &str, headers: &Headers) -> bool {
         Some(v) => v,
         None => return false
     };
-    let good = AuthToken::new_with_time(hmac_secret, &to_verify.username,
+    let good = AuthToken::new_with_time(hmac_secret, &to_verify.data,
                                         to_verify.time);
 
     AuthToken::verify_token(&good, &to_verify)
